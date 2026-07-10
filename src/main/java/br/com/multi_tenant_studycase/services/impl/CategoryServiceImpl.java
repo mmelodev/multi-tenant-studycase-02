@@ -1,5 +1,6 @@
 package br.com.multi_tenant_studycase.services.impl;
 
+import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.entities.Category;
 import br.com.multi_tenant_studycase.mapper.CategoryMapper;
 import br.com.multi_tenant_studycase.repositories.CategoryRepository;
@@ -10,9 +11,9 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -33,10 +34,8 @@ public class CategoryServiceImpl implements CategoryService {
         this.categoryRepository.save(category);
     }
 
-
     @Override
     public void update(String id, CategoryRequest request) {
-
         final Optional<Category> existingCategory = this.categoryRepository.findById(id);
         if(existingCategory.isEmpty()){
             log.debug("Category Not Found");
@@ -55,11 +54,11 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public List<CategoryResponse> findALl() {
-        return this.categoryRepository.findAll()
-                .stream()
-                .map(this.categoryMapper::toResponse)
-                .toList();
+    public PageResponse<CategoryResponse> findALl(final int page, final int size) {
+        final PageRequest pageRequest = PageRequest.of(page, size);
+        final Page<Category> categories = this.categoryRepository.findAll(pageRequest);
+        final Page<CategoryResponse> categoryResponses = categories.map(this.categoryMapper::toResponse);
+        return PageResponse.of(categoryResponses);
     }
 
     @Override

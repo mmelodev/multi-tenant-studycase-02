@@ -1,5 +1,7 @@
 package br.com.multi_tenant_studycase.services;
 
+import br.com.multi_tenant_studycase.common.PageResponse;
+
 import java.util.List;
 
 public interface BasicService <I, O>{
@@ -7,7 +9,7 @@ public interface BasicService <I, O>{
 
     void update (final String id, final I request);
 
-    List<O> findALl();
+    PageResponse<O> findALl(final int page, final int size);
 
     O findById(final String id);
 

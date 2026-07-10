@@ -8,8 +8,8 @@ import org.hibernate.Session;
 import org.hibernate.annotations.Comment;
 import org.springframework.stereotype.Component;
 
-@Aspect
-@Component
+//@Aspect
+//@Component
 public class TenantHibernateFilter {
     @PersistenceContext
     private EntityManager entityManager;

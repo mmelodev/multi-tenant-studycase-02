@@ -1,5 +1,6 @@
 package br.com.multi_tenant_studycase.controller;
 
+import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.request.CategoryRequest;
 import br.com.multi_tenant_studycase.response.CategoryResponse;
 import br.com.multi_tenant_studycase.services.CategoryService;
@@ -36,8 +37,10 @@ public class CategoryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CategoryResponse>> getAllCategories (){
-        return ResponseEntity.ok(this.categoryService.findALl());
+    public ResponseEntity<PageResponse<CategoryResponse>> getAllCategories(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(this.categoryService.findALl(page, size));
     }
 
     @DeleteMapping("/{category-id}")

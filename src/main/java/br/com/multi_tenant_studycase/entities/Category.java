@@ -1,9 +1,7 @@
 package br.com.multi_tenant_studycase.entities;
 
-import br.com.multi_tenant_studycase.common.AbstractEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.MappedSuperclass;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
