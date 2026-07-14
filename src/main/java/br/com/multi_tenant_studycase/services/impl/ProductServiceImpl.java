@@ -8,6 +8,7 @@ import br.com.multi_tenant_studycase.repositories.CategoryRepository;
 import br.com.multi_tenant_studycase.repositories.ProductRepository;
 import br.com.multi_tenant_studycase.request.ProductRequest;
 import br.com.multi_tenant_studycase.response.ProductResponse;
+import br.com.multi_tenant_studycase.response.StockMvtResponse;
 import br.com.multi_tenant_studycase.services.ProductService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;

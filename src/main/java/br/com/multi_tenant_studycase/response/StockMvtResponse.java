@@ -11,6 +11,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @Builder
 public class StockMvtResponse {
+    private String id;
     private TypeMvt typeMvt;
     private Integer quantity;
     private LocalDate dateMvt;

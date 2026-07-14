@@ -1,6 +1,7 @@
 package br.com.multi_tenant_studycase.services;
 
 import br.com.multi_tenant_studycase.common.PageResponse;
+import br.com.multi_tenant_studycase.response.StockMvtResponse;
 
 import java.util.List;
 
