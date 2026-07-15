@@ -3,6 +3,8 @@ create table tenants
     deleted         boolean      not null,
     created_at      timestamp(6) not null,
     updated_at      timestamp(6),
+    created_by      varchar(255),
+    updated_by      varchar(255),
     admin_email     varchar(255) not null
         unique,
     admin_full_name varchar(255) not null,
@@ -19,7 +21,7 @@ create table tenants
     status          varchar(255) not null
         constraint tenants_status_check
             check ((status)::text = ANY
-                   ((ARRAY ['PENDING'::character varying, 'ACTIVE'::character varying, 'SUSPENDED'::character varying, 'INACTIVE'::character varying])::text[])),
+                   ((ARRAY ['PENDING'::character varying, 'ACTIVE'::character varying, 'SUSPENDED'::character varying, 'INACTIVE'::character varying])::text[]))
 );
 
 create table users
@@ -29,6 +31,7 @@ create table users
     created_at timestamp(6) not null,
     updated_at timestamp(6),
     created_by varchar(255) not null,
+    updated_by varchar(255),
     email      varchar(255) not null
         unique,
     first_name varchar(255) not null,
@@ -43,7 +46,6 @@ create table users
     tenant_id  varchar(255)
         constraint fk_user_tenant_id
             references tenants,
-    updated_by varchar(255),
     username   varchar(255) not null
         unique
 );

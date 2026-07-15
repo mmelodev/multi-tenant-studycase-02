@@ -79,4 +79,12 @@ public class StockMvtServiceImpl implements StockMvtService {
             throw new RuntimeException("Category already exists"); //adicionar exception personalizada
         }
     }
+
+    @Override
+    public PageResponse<StockMvtResponse> findAllByProductId(String productId, int page, int size) {
+        final PageRequest pageRequest = PageRequest.of(page, size);
+        final Page<StockMvt> stockMvts = this.stockMvtRepository.findAllByProductId(productId, pageRequest);
+        final Page<StockMvtResponse> stockMvtResponses = stockMvts.map(this.stockMvtMapper::toResponse);
+        return PageResponse.of(stockMvtResponses);
+    }
 }

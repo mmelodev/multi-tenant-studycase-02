@@ -3,9 +3,10 @@ CREATE SEQUENCE IF NOT EXISTS revinfo_seq START WITH 1 INCREMENT BY 50;
 CREATE TABLE categories
 (
     id          VARCHAR(255) NOT NULL,
-    tenant_id   VARCHAR(255) NOT NULL,
     created_at  TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    updable_at  TIMESTAMP WITHOUT TIME ZONE,
+    updated_at  TIMESTAMP WITHOUT TIME ZONE,
+    created_by  VARCHAR(255) NOT NULL,
+    updated_by  VARCHAR(255),
     deleted     BOOLEAN      NOT NULL,
     name        VARCHAR(255) NOT NULL,
     description VARCHAR(255),
@@ -15,9 +16,10 @@ CREATE TABLE categories
 CREATE TABLE products
 (
     id              VARCHAR(255) NOT NULL,
-    tenant_id       VARCHAR(255) NOT NULL,
     created_at      TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    updable_at      TIMESTAMP WITHOUT TIME ZONE,
+    updated_at      TIMESTAMP WITHOUT TIME ZONE,
+    created_by      VARCHAR(255) NOT NULL,
+    updated_by      VARCHAR(255),
     deleted         BOOLEAN      NOT NULL,
     name            VARCHAR(255) NOT NULL,
     reference       VARCHAR(255) NOT NULL,
@@ -44,9 +46,10 @@ CREATE TABLE revinfo
 CREATE TABLE stock_mvts
 (
     id         VARCHAR(255) NOT NULL,
-    tenant_id  VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-    updable_at TIMESTAMP WITHOUT TIME ZONE,
+    updated_at TIMESTAMP WITHOUT TIME ZONE,
+    created_by VARCHAR(255) NOT NULL,
+    updated_by VARCHAR(255),
     deleted    BOOLEAN      NOT NULL,
     type_mvt   VARCHAR(255) NOT NULL,
     quantity   INTEGER      NOT NULL,

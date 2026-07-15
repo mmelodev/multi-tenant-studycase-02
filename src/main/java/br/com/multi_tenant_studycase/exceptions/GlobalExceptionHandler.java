@@ -101,15 +101,11 @@ public class GlobalExceptionHandler {
     }
 
     private HttpStatus getHttpStatus(final BusinessException ex) {
-        if (ex instanceof RuntimeException) {
-            return HttpStatus.CONFLICT;
-        } else if (ex instanceof UnauthorizedException) {
+        // UnauthorizedException é subtipo de BusinessException: testar o mais específico primeiro.
+        if (ex instanceof UnauthorizedException) {
             return HttpStatus.UNAUTHORIZED;
-        } else if (ex instanceof RuntimeException) {
-            return HttpStatus.INTERNAL_SERVER_ERROR;
-        } else if (ex instanceof RuntimeException) {
-            return HttpStatus.BAD_REQUEST;
         }
-        return HttpStatus.BAD_REQUEST;
+        // Demais violações de regra de negócio (ex.: recurso duplicado) -> 409.
+        return HttpStatus.CONFLICT;
     }
 }

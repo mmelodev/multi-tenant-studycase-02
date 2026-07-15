@@ -21,8 +21,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.awt.print.Pageable;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -137,7 +135,7 @@ public class UserServiceImpl implements UserService {
     public PageResponse<UserResponse> getAllUsers(int page, int size) {
         final String tenantId = TenantContext.getCurrentTenant();
         final PageRequest pageRequest = PageRequest.of(page, size);
-        final Page<User> userPage = this.repository.findAllByTenantId(tenantId, (Pageable) pageRequest);
+        final Page<User> userPage = this.repository.findAllByTenantId(tenantId, pageRequest);
         final Page<UserResponse> userResponses = userPage.map(this.userMapper::toResponse);
         return PageResponse.of(userResponses);
     }

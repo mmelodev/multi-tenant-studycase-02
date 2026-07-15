@@ -5,6 +5,7 @@ import br.com.multi_tenant_studycase.auth.responses.LoginResponse;
 import br.com.multi_tenant_studycase.auth.services.AuthenticationService;
 import br.com.multi_tenant_studycase.request.RegisterTenantRequest;
 import br.com.multi_tenant_studycase.services.TenantService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

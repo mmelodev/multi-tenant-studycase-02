@@ -1,180 +1,406 @@
 # multi-tenant-studycase
 
-Estudo de caso de uma API REST multi-tenant em **Spring Boot 4.1.0 / Java 25**, usando a estratégia de **schema compartilhado com coluna discriminadora** (`tenant_id`). Para uma análise aprofundada da arquitetura, riscos conhecidos e roadmap, veja [`arquitetura-multitenant.md`](./arquitetura-multitenant.md).
+Estudo de caso de uma API REST **multi-tenant** em Spring Boot, usando a estratégia de
+**um schema PostgreSQL por tenant** (schema-per-tenant). O isolamento é feito pelo
+mecanismo nativo de multi-tenancy do Hibernate (`multi_tenancy: SCHEMA`): a cada
+requisição autenticada, a conexão tem seu `search_path` apontado para o schema do
+tenant dono do token.
+
+> Este README documenta a **API**. Para o racional de arquitetura, veja os comentários
+> no código de `config/` (`MultiTenantConnectionProviderImpl`, `CurrentTenantIdentifierResolverImpl`,
+> `TenantSchemaResolver`).
 
 ---
 
 ## Stack
 
-- Java 25, Spring Boot 4.1.0 (`web`, `data-jpa`, `validation`)
-- PostgreSQL (driver `org.postgresql`)
-- Lombok
-- Maven (via wrapper `./mvnw`)
+- Java / Spring Boot (`web`, `data-jpa`, `validation`, `security`, `flyway`)
+- PostgreSQL
+- Flyway (migrations versionadas, `common` + `tenant`)
+- JWT assinado com par de chaves RSA (`jjwt`)
+- springdoc / Swagger UI
+- Lombok, Maven (via wrapper `./mvnw`)
+
+---
+
+## Como a multi-tenancy funciona
+
+Há dois níveis de schema no mesmo banco:
+
+- **`public`** — schema global. Guarda as tabelas `tenants` e `users`.
+- **`tenant_<company_code>`** — um schema por tenant, criado no momento da aprovação.
+  Guarda os dados de negócio: `categories`, `products`, `stock_mvts`.
+
+Fluxo de ponta a ponta:
+
+1. Uma empresa se registra (`POST /api/v1/auth/register`) e nasce com status `PENDING`.
+2. Um administrador da plataforma aprova (`POST /api/v1/tenants/approve/{tenant-id}`).
+   A aprovação cria o schema `tenant_<company_code>`, roda as migrations de tenant
+   nesse schema e cria o usuário administrador inicial da empresa (`ROLE_COMPANY_ADMIN`).
+3. O usuário faz login (`POST /api/v1/auth/login`) e recebe um **JWT**.
+4. Em cada chamada seguinte, o token vai no header `Authorization: Bearer <token>`.
+   O filtro de autenticação lê o `tenantId` do token, resolve o schema correspondente
+   e o Hibernate direciona todas as queries para o schema daquele tenant.
+
+**Não existe mais o header `X-Tenant-ID`.** O tenant é determinado pelo conteúdo do JWT.
+
+---
+
+## Autenticação
+
+Todas as rotas exigem autenticação, **exceto** as de `/api/v1/auth/**` e as de documentação
+(`/swagger-ui/**`, `/v3/api-docs/**`).
+
+Envie o token em todas as rotas protegidas:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+Algumas rotas ainda exigem papéis específicos via `@PreAuthorize` (indicado por endpoint abaixo).
+Papéis disponíveis (`UserRole`): `ROLE_PLATFORM_ADMIN`, `ROLE_COMPANY_ADMIN`,
+`ROLE_ADMINISTRATOR`, `ROLE_USER`, `ROLE_SALE_OPERATOR`.
+
+---
 
 ## Como rodar localmente
 
-1. Suba um PostgreSQL acessível em `localhost` (o `docker-compose.yml` do projeto ainda está vazio — hoje é preciso provisionar o banco manualmente) e crie o database `multitenant-study`.
-2. Defina as variáveis de ambiente exigidas por `application.properties`:
+1. Suba um PostgreSQL em `localhost` e crie o database `multitenant-study-02`.
+2. Gere um par de chaves RSA e aponte as variáveis de ambiente para elas (ou use os
+   defaults `certs/private_key.pem` / `certs/public_key.pem`).
+3. Defina as variáveis de ambiente:
 
-   | Variável | Descrição |
-   |---|---|
-   | `DB_PORT` | Porta do Postgres (ex.: `5432`) |
-   | `DB_USER` | Usuário do banco |
-   | `DB_PASS` | Senha do banco |
+   | Variável | Descrição | Default |
+   |---|---|---|
+   | `DB_PORT` | Porta do Postgres | — |
+   | `DB_USER` | Usuário do banco | — |
+   | `DB_PASS` | Senha do banco | — |
+   | `SERVER_PORT` | Porta da aplicação | `8080` |
+   | `SPRING_PROFILES_ACTIVE` | Profile ativo | `dev` |
+   | `JWT_PRIVATE_KEY_PATH` | Chave privada RSA (PEM) | `certs/private_key.pem` |
+   | `JWT_PUBLIC_KEY_PATH` | Chave pública RSA (PEM) | `certs/public_key.pem` |
+   | `JWT_ACCESS_TOKEN_EXPIRATION` | Validade do token (ms) | `86400000` (24h) |
 
-3. Rode a aplicação:
+4. Rode a aplicação:
 
    ```bash
    ./mvnw spring-boot:run
    ```
 
-   `spring.jpa.hibernate.ddl-auto=update` está ativo, então as tabelas são criadas/atualizadas automaticamente a partir das entidades.
+   O Flyway aplica automaticamente as migrations de `public` (`classpath:db/migration/common`)
+   no start. As migrations de cada tenant (`classpath:db/migration/tenant`) são aplicadas
+   ao aprovar o tenant. O `ddl-auto` é `none` — o schema é 100% gerido por Flyway.
 
-A API sobe, por padrão do Spring Boot, em `http://localhost:8080`.
+API sobe em `http://localhost:8080`. Swagger UI em `http://localhost:8080/swagger-ui.html`.
 
 ---
 
-## Multi-tenancy: o header obrigatório
+## Convenções gerais
 
-**Toda requisição, para qualquer rota, precisa do header `X-Tenant-ID`.** Ele é validado pelo `TenantFilter`, que roda antes de qualquer controller:
-
-```
-X-Tenant-ID: acme
-```
-
-- O valor é normalizado para minúsculas internamente.
-- Se o header estiver ausente ou vazio, a API responde **`400 Bad Request`** antes mesmo de chegar ao controller:
+- **Paginação:** endpoints de listagem aceitam `?page=<n>&size=<n>` (defaults `0` e `10`)
+  e retornam um envelope `PageResponse`:
 
   ```json
-  { "error": "Tenant ID is missing in the request header." }
+  {
+    "content": [ /* ... */ ],
+    "page": 0,
+    "size": 10,
+    "totalElements": 42,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrevious": false,
+    "isFirst": true,
+    "isLast": false
+  }
   ```
 
-> **Nota de status:** o `X-Tenant-ID` já é exigido e propagado internamente (`TenantContext`), mas o filtro do Hibernate que deveria aplicar `tenant_id = :tenantId` automaticamente em cada query ainda não está ativo por uma dependência faltando no `pom.xml` (`spring-boot-starter-aop`). Ou seja: **o header é validado, mas o isolamento de dados entre tenants ainda não está garantido de ponta a ponta.** Detalhes em [`arquitetura-multitenant.md`](./arquitetura-multitenant.md).
+- **Erros:** tratados por um handler global e retornados no formato:
+
+  ```json
+  {
+    "code": "NOT_FOUND",
+    "message": "Category Not Found",
+    "path": "/api/categories/abc",
+    "validationErrors": null
+  }
+  ```
+
+  | Status | Quando |
+  |---|---|
+  | `400 Bad Request` | Falha de validação de campos (`@Valid`) — vem em `validationErrors` |
+  | `401 Unauthorized` | Credenciais inválidas / não autenticado |
+  | `404 Not Found` | Entidade inexistente |
+  | `409 Conflict` | Violação de regra de negócio (ex.: recurso duplicado) |
 
 ---
 
-## Endpoints — `Category`
+## Endpoints
 
-Base path: `/api/categories`
+### Authentication — `/api/v1/auth` (público)
 
-### `POST /api/categories`
+#### `POST /api/v1/auth/register`
 
-Cria uma categoria.
+Registra uma nova empresa (tenant). Nasce com status `PENDING`, sem schema ainda.
 
-**Request body:**
+Request (`RegisterTenantRequest`) — todos os campos `@NotBlank`:
 
 ```json
 {
-  "name": "Eletrônicos",
-  "description": "Produtos eletrônicos em geral"
+  "companyName": "ACME Ltda",
+  "companyCode": "acme",
+  "email": "contato@acme.com",
+  "adminFullName": "Maria Silva",
+  "adminEmail": "maria@acme.com",
+  "adminUsername": "maria",
+  "adminPassword": "senhaForte123"
 }
 ```
 
-| Campo | Tipo | Obrigatório | Observação |
+Resposta: `200 OK` (sem corpo).
+
+#### `POST /api/v1/auth/login`
+
+Autentica um usuário e devolve o JWT.
+
+Request (`LoginRequest`):
+
+```json
+{ "username": "maria", "password": "senhaForte123" }
+```
+
+Resposta `200 OK` (`LoginResponse`):
+
+```json
+{ "accessToken": "eyJhbGciOi...", "tokenType": "Bearer" }
+```
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"maria","password":"senhaForte123"}'
+```
+
+---
+
+### Tenants — `/api/v1/tenants` (autenticado; gestão da plataforma)
+
+| Método | Rota | Efeito | Resposta |
 |---|---|---|---|
-| `name` | string | recomendado | **sem validação `@NotBlank`/`@Size` declarada hoje** — apesar do `@Valid` no controller, `CategoryRequest` não tem nenhuma anotação de Bean Validation nos campos, então um `name` nulo ou vazio passa pela validação HTTP e só falha (se falhar) na constraint `NOT NULL` do banco, com `500`. |
-| `description` | string | não | livre |
+| `POST` | `/approve/{tenant-id}` | Ativa o tenant, **provisiona o schema** e cria o admin inicial | `200 OK` |
+| `PATCH` | `/activate/{tenant-id}` | `PENDING` → `ACTIVE` | `200 OK` |
+| `PATCH` | `/deactivate/{tenant-id}` | `ACTIVE` → `INACTIVE` | `200 OK` |
+| `PATCH` | `/suspend/{tenant-id}` | `ACTIVE` → `SUSPENDED` | `200 OK` |
+| `GET` | `/` | Lista tenants (paginado) | `PageResponse<TenantResponse>` |
 
-**Respostas:**
-
-| Status | Quando |
-|---|---|
-| `200 OK` | Categoria criada (sem corpo de resposta) |
-| `400 Bad Request` | Header `X-Tenant-ID` ausente |
-| `500 Internal Server Error` | Nome duplicado (regra de negócio lança `RuntimeException` sem tratamento HTTP dedicado) ou violação de constraint no banco |
-
-```bash
-curl -X POST http://localhost:8080/api/categories \
-  -H "X-Tenant-ID: acme" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Eletrônicos","description":"Produtos eletrônicos em geral"}'
-```
-
----
-
-### `GET /api/categories`
-
-Lista todas as categorias.
-
-**Resposta `200 OK`:**
-
-```json
-[
-  { "id": "b2e1...", "name": "Eletrônicos", "description": "..." },
-  { "id": "f9a4...", "name": "Livros", "description": null }
-]
-```
-
-```bash
-curl http://localhost:8080/api/categories -H "X-Tenant-ID: acme"
-```
-
----
-
-### `GET /api/categories/{category-id}`
-
-Busca uma categoria por id.
-
-| Status | Quando |
-|---|---|
-| `200 OK` | Encontrada — corpo é um `CategoryResponse` |
-| `500 Internal Server Error` | Não encontrada (`EntityNotFoundException` sem `@ControllerAdvice`, hoje não vira `404`) |
-
-```bash
-curl http://localhost:8080/api/categories/b2e1... -H "X-Tenant-ID: acme"
-```
-
----
-
-### `PUT /api/categories/{category-id}`
-
-Atualiza uma categoria existente.
-
-**Request body:** igual ao `POST`.
-
-⚠️ **Bug conhecido:** a implementação atual recria a entidade do zero a partir do request e só copia o `id` antigo — os campos `tenantId`, `deleted` e auditoria não vêm junto. Na prática, isso tende a quebrar com erro de constraint (`NOT NULL`) no banco. Não considere este endpoint confiável até a correção (ver `arquitetura-multitenant.md`, seção "itens pendentes").
-
-```bash
-curl -X PUT http://localhost:8080/api/categories/b2e1... \
-  -H "X-Tenant-ID: acme" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Eletrônicos e Informática","description":"..."}'
-```
-
----
-
-### `DELETE /api/categories/{category-id}`
-
-Remove uma categoria (**exclusão física**, não soft delete — apesar de existir um campo `deleted` na entidade, ele não é usado nesta operação).
-
-⚠️ **Bug conhecido:** o `@PathVariable` deste endpoint está anotado incorretamente (`@PathVariable("/{category-id}")` em vez de `@PathVariable("category-id")`), o que deve impedir o Spring de casar a variável de path corretamente. Endpoint não confiável até a correção.
-
-```bash
-curl -X DELETE http://localhost:8080/api/categories/b2e1... -H "X-Tenant-ID: acme"
-```
-
----
-
-## Modelo de dados — `CategoryResponse`
+`TenantResponse`:
 
 ```json
 {
-  "id": "string (UUID)",
-  "name": "string",
-  "description": "string | null"
+  "tenantId": "uuid",
+  "companyName": "ACME Ltda",
+  "companyCode": "acme",
+  "email": "contato@acme.com",
+  "adminFullName": "Maria Silva",
+  "adminEmail": "maria@acme.com",
+  "adminUsername": "maria",
+  "adminPassword": "<hash>",
+  "createdAt": "2026-07-15T10:00:00",
+  "status": "ACTIVE"
 }
 ```
 
-Internamente, toda entidade (via `AbstractEntity`) também guarda `tenantId`, `createdAt`, `updatedAt` e `deleted`, mas esses campos **não são expostos** na API — só existem no banco.
+Status possíveis (`TenantStatus`): `PENDING`, `ACTIVE`, `SUSPENDED`, `INACTIVE`.
 
 ---
 
-## Limitações conhecidas (resumo)
+### Users — `/api/v1/users` (autenticado + papéis)
 
-Para o detalhamento completo, ver [`arquitetura-multitenant.md`](./arquitetura-multitenant.md). Em resumo, hoje:
+| Método | Rota | Papel exigido | Corpo | Resposta |
+|---|---|---|---|---|
+| `POST` | `/` | `COMPANY_ADMIN` | `UserRequest` | `201 Created` |
+| `GET` | `/` | `COMPANY_ADMIN`, `ADMINISTRATOR` | — | `PageResponse<UserResponse>` |
+| `GET` | `/{user-id}` | `COMPANY_ADMIN`, `ADMINISTRATOR` | — | `UserResponse` |
+| `PUT` | `/{user-id}` | `COMPANY_ADMIN` | `UserRequest` | `202 Accepted` |
+| `DELETE` | `/{user-id}` | `COMPANY_ADMIN` | — | `204 No Content` |
+| `PUT` | `/{user-id}/enable` | `COMPANY_ADMIN` | — | `202 Accepted` |
+| `PUT` | `/{user-id}/disable` | `COMPANY_ADMIN` | — | `202 Accepted` |
 
-- O isolamento por tenant nas queries ainda não está ativo de ponta a ponta (dependência Maven faltando).
-- `PUT` e `DELETE` têm bugs que provavelmente causam erro em runtime.
-- Não há tratamento global de exceções — erros de negócio viram `500` em vez de `404`/`409`.
-- `CategoryRequest` não tem validação de campos declarada, apesar do `@Valid`.
-- `docker-compose.yml` está vazio; setup do banco é manual.
+Request (`UserRequest`):
+
+```json
+{
+  "username": "joao",
+  "email": "joao@acme.com",
+  "password": "min8chars",
+  "firstName": "João",
+  "lastName": "Souza",
+  "role": "ROLE_USER"
+}
+```
+
+Validações: `username`, `email`, `firstName`, `lastName` são `@NotBlank`; `password` mínimo 8 caracteres; `role` `@NotNull`.
+
+`UserResponse`:
+
+```json
+{
+  "id": "uuid",
+  "username": "joao",
+  "email": "joao@acme.com",
+  "password": "<hash>",
+  "firstName": "João",
+  "lastName": "Souza",
+  "role": "ROLE_USER"
+}
+```
+
+---
+
+### Categories — `/api/categories` (autenticado)
+
+> Observação: esta base é `/api/categories` (sem `/v1`), diferente do restante da API.
+
+| Método | Rota | Corpo | Resposta |
+|---|---|---|---|
+| `POST` | `/` | `CategoryRequest` | `200 OK` |
+| `GET` | `/` | — | `PageResponse<CategoryResponse>` |
+| `GET` | `/{category-id}` | — | `CategoryResponse` |
+| `PUT` | `/{category-id}` | `CategoryRequest` | `200 OK` |
+| `DELETE` | `/{category-id}` | — | `200 OK` |
+
+Request (`CategoryRequest`):
+
+```json
+{ "name": "Eletrônicos", "description": "Produtos eletrônicos em geral" }
+```
+
+`CategoryResponse`:
+
+```json
+{ "id": "uuid", "name": "Eletrônicos", "description": "..." }
+```
+
+```bash
+curl http://localhost:8080/api/categories \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+### Products — `/api/v1/products` (autenticado)
+
+| Método | Rota | Corpo | Resposta |
+|---|---|---|---|
+| `POST` | `/` | `ProductRequest` | `200 OK` |
+| `GET` | `/` | — | `PageResponse<ProductResponse>` |
+| `GET` | `/{product-id}` | — | `ProductResponse` |
+| `PUT` | `/{product-id}` | `ProductRequest` | `202 Accepted` |
+| `DELETE` | `/{product-id}` | — | `204 No Content` |
+
+Request (`ProductRequest`):
+
+```json
+{
+  "name": "Notebook",
+  "reference": "NB-001",
+  "description": "14 polegadas",
+  "alertThreshold": 5,
+  "price": 3999.90,
+  "categoryId": "uuid-da-categoria"
+}
+```
+
+`ProductResponse` (inclui nome da categoria e quantidade disponível calculada):
+
+```json
+{
+  "id": "uuid",
+  "name": "Notebook",
+  "reference": "NB-001",
+  "description": "14 polegadas",
+  "alertThreshold": 5,
+  "price": 3999.90,
+  "categoryName": "Eletrônicos",
+  "availableQuantity": 12
+}
+```
+
+---
+
+### Stock Movements — `/api/v1/stocks` (autenticado)
+
+| Método | Rota | Corpo | Resposta |
+|---|---|---|---|
+| `POST` | `/` | `StockMvtRequest` | `200 OK` |
+| `GET` | `/` | — | `PageResponse<StockMvtResponse>` |
+| `GET` | `/{stock-mvt-id}` | — | `StockMvtResponse` |
+| `GET` | `/product/{product-id}` | — | `PageResponse<StockMvtResponse>` |
+| `PUT` | `/{stock-mvt-id}` | `StockMvtRequest` | `202 Accepted` |
+| `DELETE` | `/{stock-mvt-id}` | — | `204 No Content` |
+
+Request (`StockMvtRequest`) — `typeMvt` é `IN` (entrada) ou `OUT` (saída):
+
+```json
+{
+  "typeMvt": "IN",
+  "quantity": 10,
+  "dateMvt": "2026-07-15",
+  "comment": "Reposição de estoque",
+  "productId": "uuid-do-produto"
+}
+```
+
+`StockMvtResponse`:
+
+```json
+{
+  "id": "uuid",
+  "typeMvt": "IN",
+  "quantity": 10,
+  "dateMvt": "2026-07-15",
+  "comment": "Reposição de estoque"
+}
+```
+
+---
+
+## Exemplo de fluxo completo
+
+```bash
+BASE=http://localhost:8080
+
+# 1. Registrar a empresa
+curl -X POST $BASE/api/v1/auth/register -H "Content-Type: application/json" -d '{
+  "companyName":"ACME Ltda","companyCode":"acme","email":"contato@acme.com",
+  "adminFullName":"Maria Silva","adminEmail":"maria@acme.com",
+  "adminUsername":"maria","adminPassword":"senhaForte123"
+}'
+
+# 2. (Admin da plataforma) aprovar o tenant -> provisiona o schema
+curl -X POST $BASE/api/v1/tenants/approve/<tenant-id> -H "Authorization: Bearer <platform-token>"
+
+# 3. Login como admin da empresa
+TOKEN=$(curl -s -X POST $BASE/api/v1/auth/login -H "Content-Type: application/json" \
+  -d '{"username":"maria","password":"senhaForte123"}' | jq -r .accessToken)
+
+# 4. Operar dentro do tenant (schema resolvido pelo token)
+curl -X POST $BASE/api/categories -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"name":"Eletrônicos","description":"..."}'
+```
+
+---
+
+## Limitações e inconsistências conhecidas
+
+- **Senha exposta nas respostas:** `UserResponse.password` e `TenantResponse.adminPassword`
+  devolvem o hash da senha. Devem ser removidos do payload de saída.
+- **Base path inconsistente:** `Category` usa `/api/categories`, enquanto os demais recursos
+  usam `/api/v1/...`.
+- **`CategoryRequest` sem Bean Validation:** apesar do `@Valid` no controller, os campos não têm
+  `@NotBlank`/`@Size`; um `name` vazio só é barrado (se for) pela constraint `NOT NULL` do banco.
+- **Enum de papel divergente:** `UserRole` define `ROLE_SALE_OPERATOR`, mas o `check` da tabela
+  `users` espera `ROLE_SALES_OPERATOR` — criar um usuário com esse papel viola a constraint.
+- **Versão do springdoc:** a dependência foi adicionada com uma versão da linha do Spring Boot 3;
+  ao fixar a versão do Spring Boot 4, alinhe a versão do `springdoc-openapi-starter-webmvc-ui`.
+- **`search_path` por concatenação:** o schema é injetado via `SET search_path TO <schema>`;
+  recomenda-se validar o identificador (ex.: `^[a-z0-9_]+$`) antes de aplicar.

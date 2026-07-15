@@ -1,6 +1,5 @@
 package br.com.multi_tenant_studycase.config;
 
-import jdk.jfr.Registered;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.cfg.MultiTenancySettings;

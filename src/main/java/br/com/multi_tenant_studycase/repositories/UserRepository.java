@@ -2,10 +2,10 @@ package br.com.multi_tenant_studycase.repositories;
 
 import br.com.multi_tenant_studycase.entities.User;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
-import java.awt.print.Pageable;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, String> {

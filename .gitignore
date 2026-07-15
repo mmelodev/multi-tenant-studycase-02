@@ -16,6 +16,7 @@ target/
 ### IntelliJ IDEA ###
 .idea
 .cl/
+.certs/
 *.iws
 *.iml
 *.ipr

@@ -6,6 +6,7 @@ import br.com.multi_tenant_studycase.mapper.CategoryMapper;
 import br.com.multi_tenant_studycase.repositories.CategoryRepository;
 import br.com.multi_tenant_studycase.request.CategoryRequest;
 import br.com.multi_tenant_studycase.response.CategoryResponse;
+import br.com.multi_tenant_studycase.exceptions.BusinessException;
 import br.com.multi_tenant_studycase.services.CategoryService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -48,9 +49,10 @@ public class CategoryServiceImpl implements CategoryService {
             checkIfCategoryExistsByName(request.getName());
         }
 
-        final Category updatedCategory = categoryMapper.toEntity(request);
-        updatedCategory.setId(id);
-        this.categoryRepository.save(updatedCategory);
+        // Muta a entidade gerenciada para preservar id, campos de auditoria e deleted.
+        category.setName(request.getName());
+        category.setDescription(request.getDescription());
+        this.categoryRepository.save(category);
     }
 
     @Override
@@ -79,7 +81,7 @@ public class CategoryServiceImpl implements CategoryService {
         final Optional<Category> category = this.categoryRepository.findByNameIgnoreCase(name);
         if(category.isPresent()){
             log.debug("Category already exists");
-            throw new RuntimeException("Category already exists"); //adicionar exception personalizada
+            throw new BusinessException("Category already exists");
         }
     }
 }

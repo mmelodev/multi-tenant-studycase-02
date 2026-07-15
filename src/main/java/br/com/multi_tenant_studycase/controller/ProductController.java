@@ -4,6 +4,7 @@ import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.request.ProductRequest;
 import br.com.multi_tenant_studycase.response.ProductResponse;
 import br.com.multi_tenant_studycase.services.ProductService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +58,7 @@ public class ProductController {
             @RequestParam(name = "size", defaultValue = "10")
             final int size
     )  {
-        return ResponseEntity.ok(this.service.findAll(page, size));
+        return ResponseEntity.ok(this.service.findALl(page, size));
     }
 
     @DeleteMapping("/{product-id}")

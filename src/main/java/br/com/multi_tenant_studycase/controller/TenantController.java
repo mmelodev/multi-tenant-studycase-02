@@ -3,6 +3,7 @@ package br.com.multi_tenant_studycase.controller;
 import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.response.TenantResponse;
 import br.com.multi_tenant_studycase.services.TenantService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

@@ -4,6 +4,7 @@ import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.request.StockMvtRequest;
 import br.com.multi_tenant_studycase.response.StockMvtResponse;
 import br.com.multi_tenant_studycase.services.StockMvtService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +58,7 @@ public class StockMvtController {
             @RequestParam(name = "size", defaultValue = "10")
             final int size
     ) {
-        return ResponseEntity.ok(this.service.findAll(page, size));
+        return ResponseEntity.ok(this.service.findALl(page, size));
     }
 
     @GetMapping("/product/{product-id}")

@@ -4,6 +4,7 @@ import br.com.multi_tenant_studycase.common.PageResponse;
 import br.com.multi_tenant_studycase.request.UserRequest;
 import br.com.multi_tenant_studycase.response.UserResponse;
 import br.com.multi_tenant_studycase.services.UserService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

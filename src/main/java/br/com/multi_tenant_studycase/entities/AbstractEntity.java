@@ -6,9 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.Filter;
-import org.hibernate.annotations.FilterDef;
-import org.hibernate.annotations.ParamDef;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
@@ -25,7 +22,8 @@ import java.time.LocalDateTime;
 @MappedSuperclass
 @EntityListeners (AuditingEntityListener.class)
 public class AbstractEntity {
-    //Entidade tenant -> não vai ser notada pelo banco devido ao MappedSuperClass
+    // Superclasse mapeada: colunas de auditoria + id compartilhadas por todas as entidades.
+    // O isolamento por tenant é feito por schema (search_path), não por coluna discriminadora.
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
@@ -36,11 +34,11 @@ public class AbstractEntity {
     private LocalDateTime createdAt;
 
     @LastModifiedDate
-    @Column(name = "updable_at", insertable = false)
+    @Column(name = "updated_at", insertable = false)
     private LocalDateTime updatedAt;
 
     @CreatedBy
-    @Column(name = "created_by", updatable = false, nullable = false)
+    @Column(name = "created_by", updatable = false)
     private String createdBy;
 
     @LastModifiedBy

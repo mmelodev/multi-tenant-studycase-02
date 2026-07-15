@@ -8,7 +8,7 @@ spring:
 
   # Database Configuration
   datasource:
-    url: jdbc:postgresql://localhost:${DB_PORT}/multitenant-study-02}
+    url: jdbc:postgresql://localhost:${DB_PORT}/multitenant-study-02
     username: ${DB_USER}
     password: ${DB_PASS}
     driver-class-name: org.postgresql.Driver
