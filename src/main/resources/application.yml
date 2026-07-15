@@ -54,6 +54,12 @@ app:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:certs/private_key.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:certs/public_key.pem}
     access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:86400000}
+  platform-admin:
+    username: ${APP_PLATFORM_ADMIN_USERNAME:platform_admin}
+    email: ${APP_PLATFORM_ADMIN_EMAIL:platform-admin@system.local}
+    password: ${APP_PLATFORM_ADMIN_PASSWORD:ChangeMe@123}
+    first-name: ${APP_PLATFORM_ADMIN_FIRST_NAME:Platform}
+    last-name: ${APP_PLATFORM_ADMIN_LAST_NAME:Admin}
 
 springdoc:
   default-produces-media-type: application/json
